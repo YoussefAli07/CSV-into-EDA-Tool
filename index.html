@@ -221,6 +221,20 @@
     margin-left: auto;
   }
 
+  #sheetPicker{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--card);
+    border: var(--card-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+    cursor: pointer;
+    max-width: 200px;
+  }
+
   #error{
     display:none;
     margin-top: 12px;
@@ -286,6 +300,13 @@
 
     .intake{ padding: 16px; }
 
+    /* iOS Safari auto-zooms the whole page in when a focused text input's
+       font-size is under 16px — it's built into the OS, not something CSS
+       can turn off directly, only avoid by staying at/above the threshold.
+       Left at 13px (matching desktop) elsewhere; only bumped here. */
+    textarea{ font-size: 16px; }
+    .col-controls input{ font-size: 16px; }
+
     .summary-strip{
       grid-template-columns: repeat(2, 1fr);
       gap: 10px;
@@ -324,6 +345,7 @@
        target size on a phone. */
     button{ padding: 13px 16px; }
     .export-bar button{ padding: 12px 14px; }
+    #sheetPicker{ padding: 12px 14px; max-width: 100%; flex: 1 1 100%; }
   }
 
   .summary-strip{
@@ -533,7 +555,7 @@
   <div class="header-row">
     <div>
       <div class="kicker">CSV first look</div>
-      <h1>Paste, drop, or upload a CSV</h1>
+      <h1>Paste, drop, or upload a CSV or Excel file</h1>
       <p>Column types, missing values, duplicates, and outliers get pulled out automatically — nothing to configure.</p>
     </div>
     <button id="themeToggle" class="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false" type="button">
@@ -548,8 +570,9 @@
     <textarea id="csvInput" placeholder="name,age,signup_date,country&#10;Amir,29,2023-04-11,EG&#10;Lina,,2023-04-12,EG&#10;..."></textarea>
     <div class="intake-row">
       <button id="analyzeBtn">Analyze</button>
-      <label class="file-btn" for="fileInput">or choose a .csv file (or drag one in)</label>
-      <input type="file" id="fileInput" accept=".csv,text/csv">
+      <label class="file-btn" for="fileInput">or choose a .csv / .xlsx file (or drag one in)</label>
+      <input type="file" id="fileInput" accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
+      <select id="sheetPicker" style="display:none;" aria-label="Sheet to analyze"></select>
       <button class="secondary" id="sampleBtn">Load sample</button>
       <button class="secondary" id="restoreBtn" style="display:none;">Restore my data</button>
       <span class="hint" id="rowHint"></span>
@@ -579,6 +602,10 @@
   </div>
 </main>
 
+<!-- SheetJS: only external dependency besides the Google Fonts CDN above.
+     Used solely to parse .xlsx/.xls workbooks into arrays of cell values —
+     CSV parsing above stays hand-rolled and works with no network access. -->
+<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script>
 const els = {
   input: document.getElementById('csvInput'),
@@ -600,10 +627,25 @@ const els = {
   colSort: document.getElementById('colSort'),
   colCountHint: document.getElementById('colCountHint'),
   intakeZone: document.getElementById('intakeZone'),
+  sheetPicker: document.getElementById('sheetPicker'),
 };
 
 let lastReport = null;
-let stashedInput = null; // holds whichever dataset isn't currently loaded, for one-click restore
+let stashedSource = null; // holds whichever dataset isn't currently loaded, for one-click restore — either { type: 'csv', text } or { type: 'workbook', workbook, fileName, sheetName }
+
+// Set when a workbook (.xlsx/.xls) is loaded, so the sheet picker knows what
+// to re-parse when the user switches sheets. Cleared whenever the person
+// goes back to a plain-text/CSV source (paste, sample, restore), since the
+// sheet picker only applies to workbooks.
+let lastWorkbook = null;
+let lastWorkbookFileName = '';
+
+function clearWorkbookState(){
+  lastWorkbook = null;
+  lastWorkbookFileName = '';
+  els.sheetPicker.style.display = 'none';
+  els.sheetPicker.innerHTML = '';
+}
 
 // ---------- Theme ----------
 // Canvas bars are raster pixels, not CSS — they don't repaint themselves
@@ -1333,9 +1375,39 @@ function dedupeHeaders(headers){
   });
 }
 
+// Shared tail end for both intake paths: takes already-parsed headers +
+// data rows (from CSV text or from a workbook sheet), applies the same
+// row-sampling cap and renders the report, then assembles the hint line.
+// leadHints are hints that belong at the front (e.g. which sheet/file this
+// came from); the row-sampling note is always appended after those.
+function finishAnalysis(headers, dataRows, leadHints){
+  const originalRowCount = dataRows.length;
+  let rows = dataRows;
+  let sampled = false;
+  if(rows.length > MAX_ROWS){
+    rows = sampleRows(rows, MAX_ROWS);
+    sampled = true;
+  }
+  renderReport(headers, rows);
+  const hints = [...leadHints];
+  if(sampled){
+    hints.push(`randomly sampled ${MAX_ROWS.toLocaleString()} of ${originalRowCount.toLocaleString()} rows`);
+  }
+  els.rowHint.textContent = hints.join(' · ');
+}
+
+function showAnalysisError(message){
+  els.error.textContent = message;
+  els.error.style.display = 'block';
+  els.report.style.display = 'none';
+  els.exportBar.style.display = 'none';
+  els.colControls.style.display = 'none';
+}
+
 function runAnalysis(text, encodingNote){
   els.error.style.display = 'none';
   els.rowHint.textContent = '';
+  clearWorkbookState(); // a fresh CSV/paste means any previously loaded workbook's sheet picker no longer applies
   try{
     // Strip a leading byte-order mark — "CSV UTF-8" exports from Excel
     // almost always include one, and left in place it silently attaches
@@ -1348,33 +1420,101 @@ function runAnalysis(text, encodingNote){
       throw new Error("Couldn't find a header row plus at least one data row.");
     }
     const headers = dedupeHeaders(parsed[0].map(h => h.trim()));
-    let dataRows = parsed.slice(1);
-    const originalRowCount = dataRows.length;
-    let sampled = false;
-    if(dataRows.length > MAX_ROWS){
-      dataRows = sampleRows(dataRows, MAX_ROWS);
-      sampled = true;
-    }
-    renderReport(headers, dataRows);
+    const dataRows = parsed.slice(1);
     const hints = [];
-    if(encodingNote){
-      hints.push(encodingNote);
-    }
-    if(delimiter !== ','){
-      hints.push(`detected ${DELIM_LABELS[delimiter]}-delimited`);
-    }
-    if(sampled){
-      hints.push(`randomly sampled ${MAX_ROWS.toLocaleString()} of ${originalRowCount.toLocaleString()} rows`);
-    }
-    els.rowHint.textContent = hints.join(' · ');
+    if(encodingNote) hints.push(encodingNote);
+    if(delimiter !== ',') hints.push(`detected ${DELIM_LABELS[delimiter]}-delimited`);
+    finishAnalysis(headers, dataRows, hints);
   } catch(err){
-    els.error.textContent = 'Couldn\u2019t read that as CSV — ' + err.message;
-    els.error.style.display = 'block';
-    els.report.style.display = 'none';
-    els.exportBar.style.display = 'none';
-    els.colControls.style.display = 'none';
+    showAnalysisError('Couldn\u2019t read that as CSV — ' + err.message);
   }
 }
+
+// ---------- Workbook (.xlsx/.xls) parsing, via SheetJS ----------
+// A cell in a parsed worksheet can be a JS Date, number, boolean, or
+// string (raw:true + cellDates:true on read). Converting everything to a
+// plain string here lets the rest of the pipeline (inferType, the regexes
+// in DATE_RE/INT_RE/etc.) treat workbook data exactly like CSV text,
+// instead of needing separate type-inference logic for spreadsheet cells.
+function cellToString(v){
+  if(v === null || v === undefined) return '';
+  if(v instanceof Date){
+    if(isNaN(v.getTime())) return '';
+    const hasTime = v.getUTCHours() || v.getUTCMinutes() || v.getUTCSeconds();
+    const iso = v.toISOString();
+    return hasTime ? iso.slice(0, 19).replace('T', ' ') : iso.slice(0, 10);
+  }
+  if(typeof v === 'boolean') return v ? 'true' : 'false';
+  if(typeof v === 'number') return String(v);
+  return String(v).trim();
+}
+
+function sheetToRows(worksheet){
+  // header:1 → array of arrays instead of array of objects (keeps blank
+  // headers/duplicate headers intact for dedupeHeaders to handle, same as
+  // the CSV path does). blankrows:false skips fully-empty rows, which
+  // Excel exports often have trailing runs of.
+  const raw = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: true, blankrows: false });
+  return raw.map(row => row.map(cellToString));
+}
+
+function analyzeSheet(sheetName){
+  els.error.style.display = 'none';
+  els.rowHint.textContent = '';
+  try{
+    if(!lastWorkbook) throw new Error('No workbook is currently loaded.');
+    const worksheet = lastWorkbook.Sheets[sheetName];
+    const rows = sheetToRows(worksheet);
+    if(rows.length < 2){
+      throw new Error(`Sheet "${sheetName}" doesn't have a header row plus at least one data row.`);
+    }
+    const headers = dedupeHeaders(rows[0].map(h => h.trim()));
+    const dataRows = rows.slice(1);
+    const hints = [];
+    hints.push(lastWorkbook.SheetNames.length > 1
+      ? `sheet "${sheetName}" of ${lastWorkbookFileName}`
+      : lastWorkbookFileName);
+    finishAnalysis(headers, dataRows, hints);
+  } catch(err){
+    showAnalysisError('Couldn\u2019t read that sheet — ' + err.message);
+  }
+}
+
+function loadWorkbook(file, arrayBuffer){
+  if(typeof XLSX === 'undefined'){
+    showAnalysisError('The spreadsheet library didn\u2019t load (check your internet connection) — try a .csv file instead, or reload the page.');
+    return;
+  }
+  els.error.style.display = 'none';
+  try{
+    const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+    if(!workbook.SheetNames || workbook.SheetNames.length === 0){
+      throw new Error('No sheets found in this workbook.');
+    }
+    lastWorkbook = workbook;
+    lastWorkbookFileName = file.name;
+    els.input.value = ''; // workbook data isn't text — the textarea/Analyze button apply to pasted CSV only
+
+    if(workbook.SheetNames.length > 1){
+      els.sheetPicker.innerHTML = workbook.SheetNames
+        .map(name => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`)
+        .join('');
+      els.sheetPicker.style.display = 'inline-block';
+    } else {
+      els.sheetPicker.style.display = 'none';
+      els.sheetPicker.innerHTML = '';
+    }
+    analyzeSheet(workbook.SheetNames[0]);
+  } catch(err){
+    clearWorkbookState();
+    showAnalysisError('Couldn\u2019t read that as an Excel file — ' + err.message);
+  }
+}
+
+els.sheetPicker.addEventListener('change', () => {
+  if(!lastWorkbook) return;
+  analyzeSheet(els.sheetPicker.value);
+});
 
 // ---------- Column search & sort ----------
 // Cards already exist in the DOM from renderReport — this just toggles
@@ -1425,9 +1565,21 @@ els.colSort.addEventListener('change', applyColumnFilterSort);
 
 els.analyzeBtn.addEventListener('click', () => runAnalysis(els.input.value));
 
+const WORKBOOK_EXTENSIONS = /\.(xlsx|xls)$/i;
+
 function handleFile(file){
   if(!file) return;
   const reader = new FileReader();
+  const isWorkbook = WORKBOOK_EXTENSIONS.test(file.name);
+
+  if(isWorkbook){
+    reader.onload = () => loadWorkbook(file, reader.result);
+    reader.readAsArrayBuffer(file);
+    return;
+  }
+
+  // Non-workbook files (.csv, or anything else dropped/selected) go through
+  // the existing text-decode + CSV-parse path unchanged.
   reader.onload = () => {
     const { text, encoding } = decodeFileBuffer(reader.result);
     els.input.value = text;
@@ -1484,19 +1636,44 @@ Aya Ibrahim,27,Sales,50500,2023-05-01,false`;
 
 els.sampleBtn.addEventListener('click', () => {
   const current = els.input.value;
-  if(current.trim() && current !== SAMPLE){
-    stashedInput = current;
+  // "Currently viewing something worth saving" means either a workbook is
+  // loaded, or the textarea has real (non-sample) text in it — checking
+  // only the textarea missed the workbook case, since loadWorkbook() clears
+  // the textarea (binary data can't live there).
+  const viewingWorkbook = !!lastWorkbook;
+  const viewingOtherText = !viewingWorkbook && current.trim() && current !== SAMPLE;
+  if(viewingWorkbook || viewingOtherText){
+    stashedSource = viewingWorkbook
+      ? { type: 'workbook', workbook: lastWorkbook, fileName: lastWorkbookFileName, sheetName: els.sheetPicker.value || lastWorkbook.SheetNames[0] }
+      : { type: 'csv', text: current };
     els.restoreBtn.style.display = 'inline-block';
   }
   els.input.value = SAMPLE;
-  runAnalysis(SAMPLE);
+  runAnalysis(SAMPLE); // also clears any currently-loaded workbook, via clearWorkbookState()
 });
 
 els.restoreBtn.addEventListener('click', () => {
-  if(!stashedInput) return;
-  els.input.value = stashedInput;
-  runAnalysis(stashedInput);
-  stashedInput = null;
+  if(!stashedSource) return;
+  if(stashedSource.type === 'workbook'){
+    lastWorkbook = stashedSource.workbook;
+    lastWorkbookFileName = stashedSource.fileName;
+    els.input.value = '';
+    if(lastWorkbook.SheetNames.length > 1){
+      els.sheetPicker.innerHTML = lastWorkbook.SheetNames
+        .map(name => `<option value="${escapeHTML(name)}">${escapeHTML(name)}</option>`)
+        .join('');
+      els.sheetPicker.value = stashedSource.sheetName;
+      els.sheetPicker.style.display = 'inline-block';
+    } else {
+      els.sheetPicker.style.display = 'none';
+      els.sheetPicker.innerHTML = '';
+    }
+    analyzeSheet(stashedSource.sheetName);
+  } else {
+    els.input.value = stashedSource.text;
+    runAnalysis(stashedSource.text);
+  }
+  stashedSource = null;
   els.restoreBtn.style.display = 'none';
 });
 
