@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CSV First Look</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #f6f1e9;
+    --card: #ffffff;
+    --border: #ebe4d6;
+    --text: #2e2a24;
+    --text-dim: #8c8478;
+    --text-faint: #b6ac9a;
+
+    --blue: #6c8ee8;
+    --blue-soft: #ecf0fd;
+    --purple: #a17fd6;
+    --purple-soft: #f2edfb;
+    --teal: #4fa89b;
+    --teal-soft: #e3f4f1;
+    --amber: #c99a3c;
+    --amber-soft: #faf1de;
+    --coral: #e2795c;
+    --coral-soft: #fbece6;
+
+    --card-shadow: 0 1px 3px rgba(46,42,36,0.06);
+    --card-border: none;
+  }
+
+  [data-theme="dark"]{
+    --bg: #1e1b17;
+    --card: #29251f;
+    --border: #3c362c;
+    --text: #f1ece1;
+    --text-dim: #a89e8d;
+    --text-faint: #726858;
+
+    --blue: #93a9ef;
+    --blue-soft: rgba(108,142,232,0.16);
+    --purple: #c1a6e6;
+    --purple-soft: rgba(161,127,214,0.18);
+    --teal: #7bc7b9;
+    --teal-soft: rgba(79,168,155,0.18);
+    --amber: #e3bd76;
+    --amber-soft: rgba(201,154,60,0.2);
+    --coral: #f0a087;
+    --coral-soft: rgba(226,121,92,0.18);
+
+    --card-shadow: 0 1px 3px rgba(0,0,0,0.35);
+    --card-border: 1px solid var(--border);
+  }
+
+  *{ box-sizing: border-box; }
+
+  html, body{
+    margin:0;
+    padding:0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+  }
+
+  body{ padding: 32px 40px 60px; }
+
+  header{
+    max-width: 980px;
+    margin: 0 auto 24px;
+  }
+  .header-row{
+    display:flex;
+    align-items:flex-start;
+    justify-content: space-between;
+    gap: 20px;
+  }
+  header .kicker{
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+  header h1{
+    font-weight: 700;
+    font-size: 24px;
+    margin: 0;
+    color: var(--text);
+  }
+  header p{
+    font-size: 13.5px;
+    color: var(--text-dim);
+    margin: 6px 0 0;
+    max-width: 62ch;
+    line-height: 1.55;
+  }
+
+  main{
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  .theme-toggle{
+    display:flex;
+    align-items:center;
+    gap: 8px;
+    background: none;
+    box-shadow: none;
+    padding: 6px 4px;
+    flex-shrink: 0;
+  }
+  .theme-toggle:hover{ opacity: 0.75; }
+  .theme-toggle .toggle-label{
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-dim);
+  }
+  .toggle-track{
+    display:inline-block;
+    width: 34px;
+    height: 19px;
+    border-radius: 20px;
+    background: var(--border);
+    position: relative;
+    transition: background 0.15s ease;
+  }
+  .toggle-thumb{
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--card);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    transition: transform 0.15s ease;
+  }
+  [aria-pressed="true"] .toggle-track{ background: var(--blue); }
+  [aria-pressed="true"] .toggle-thumb{ transform: translateX(15px); }
+
+  .intake{
+    background: var(--card);
+    border-radius: 16px;
+    padding: 18px 20px;
+    box-shadow: var(--card-shadow);
+    border: 2px dashed transparent;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .intake.drag-active{
+    border-color: var(--blue);
+    background: var(--blue-soft);
+  }
+  .intake.drag-active textarea{
+    pointer-events: none; /* drop should land on the panel, not open the textarea's own drag/select behavior */
+  }
+
+  textarea{
+    width:100%;
+    min-height: 130px;
+    resize: vertical;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    line-height: 1.6;
+    padding: 12px 14px;
+  }
+  textarea:focus{
+    outline: none;
+    border-color: var(--blue);
+    background: var(--card);
+  }
+  textarea::placeholder{ color: var(--text-faint); }
+
+  .intake-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  button{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 9px 16px;
+    border: none;
+    background: var(--blue);
+    color: #fff;
+    box-shadow: var(--card-shadow);
+    transition: transform 0.08s ease, opacity 0.15s ease;
+  }
+  button:hover{ opacity: 0.9; }
+  button:active{ transform: translateY(1px); }
+
+  button.secondary{
+    background: var(--card);
+    color: var(--text);
+    box-shadow: var(--card-shadow);
+    border: var(--card-border);
+  }
+  button.secondary:hover{ opacity: 1; background: var(--bg); }
+
+  .file-btn{
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 1px dashed var(--text-faint);
+  }
+  #fileInput{ display:none; }
+
+  .hint{
+    font-size: 11.5px;
+    color: var(--text-faint);
+    margin-left: auto;
+  }
+
+  #error{
+    display:none;
+    margin-top: 12px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--coral);
+    background: var(--coral-soft);
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+
+  #report{ display:none; margin-top: 28px; }
+
+  .export-bar{
+    display:none;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .export-bar button{
+    padding: 8px 14px;
+    font-size: 12.5px;
+  }
+
+  @media print{
+    :root, [data-theme="dark"]{
+      --bg: #f6f1e9 !important;
+      --card: #ffffff !important;
+      --border: #ebe4d6 !important;
+      --text: #2e2a24 !important;
+      --text-dim: #8c8478 !important;
+      --text-faint: #b6ac9a !important;
+      --blue: #6c8ee8 !important;
+      --blue-soft: #ecf0fd !important;
+      --purple: #a17fd6 !important;
+      --purple-soft: #f2edfb !important;
+      --teal: #4fa89b !important;
+      --teal-soft: #e3f4f1 !important;
+      --amber: #c99a3c !important;
+      --amber-soft: #faf1de !important;
+      --coral: #e2795c !important;
+      --coral-soft: #fbece6 !important;
+      --card-shadow: 0 1px 3px rgba(46,42,36,0.06) !important;
+      --card-border: none !important;
+    }
+    body{ background: #fff; padding: 0; }
+    header .kicker, .intake, .export-bar, .theme-toggle, .col-controls{ display:none !important; }
+    header{ margin-bottom: 14px; }
+    main{ max-width: 100%; }
+    .col-card, .rel-item{ break-inside: avoid; }
+    .cols-grid{ grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media screen and (max-width: 640px){
+    body{ padding: 20px 16px 40px; }
+
+    .header-row{
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    header h1{ font-size: 20px; }
+    .theme-toggle{ align-self: flex-start; }
+
+    .intake{ padding: 16px; }
+
+    .summary-strip{
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .col-controls{
+      flex-wrap: wrap;
+    }
+    .col-controls input{
+      flex: 1 1 100%;
+      max-width: 100%;
+    }
+    .col-controls select{
+      flex: 1 1 auto;
+    }
+    .col-controls .hint{
+      margin-left: 0;
+      flex-basis: 100%;
+    }
+
+    .cols-grid{
+      grid-template-columns: 1fr;
+    }
+
+    .rel-item{
+      flex-direction: column;
+      gap: 6px;
+    }
+    .rel-pair{
+      white-space: normal;
+    }
+
+    /* Padding-based, not a fixed height, so it scales naturally with the
+       text inside rather than clipping or leaving it off-center — but
+       still comfortably clears the ~44px minimum recommended touch
+       target size on a phone. */
+    button{ padding: 13px 16px; }
+    .export-bar button{ padding: 12px 14px; }
+  }
+
+  .summary-strip{
+    display:grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat{
+    background: var(--card);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(46,42,36,0.06);
+  }
+  .stat .num{
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text);
+    line-height:1;
+  }
+  .stat .num.flagged{ color: var(--coral); }
+  .stat .label{
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 5px;
+  }
+
+  .col-controls{
+    display:none;
+    align-items:center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .col-controls input, .col-controls select{
+    font-family: 'Inter', sans-serif;
+    font-size: 13px;
+    color: var(--text);
+    background: var(--card);
+    border: var(--card-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    box-shadow: var(--card-shadow);
+    outline: none;
+  }
+  .col-controls input{
+    flex: 1;
+    max-width: 260px;
+  }
+  .col-controls input:focus, .col-controls select:focus{
+    box-shadow: 0 0 0 2px var(--blue-soft);
+  }
+  .col-controls input::placeholder{ color: var(--text-faint); }
+  .col-controls .hint{ margin-left: auto; }
+
+  .cols-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 14px;
+  }
+
+  .col-card{
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 3px rgba(46,42,36,0.06);
+    position: relative;
+  }
+  .col-card-head{
+    display:flex;
+    align-items:flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .col-name{
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .type-pill{
+    font-size: 11px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    flex-shrink:0;
+  }
+  .type-integer, .type-float{ background: var(--blue-soft); color: var(--blue); }
+  .type-boolean{ background: var(--amber-soft); color: var(--amber); }
+  .type-date{ background: var(--purple-soft); color: var(--purple); }
+  .type-categorical, .type-text{ background: var(--teal-soft); color: var(--teal); }
+  .type-constant{ background: var(--coral-soft); color: var(--coral); }
+
+  canvas.spark{
+    display:block;
+    width:100%;
+    height: 44px;
+    margin: 8px 0 10px;
+  }
+
+  .stats-line{
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.8;
+  }
+  .stats-line b{ color: var(--text); font-weight: 600; }
+
+  .top-values{
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .top-values .tv-row{
+    display:flex;
+    justify-content: space-between;
+    padding: 2px 0;
+  }
+  .top-values .tv-row span:first-child{
+    max-width: 70%;
+    overflow:hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .flag{
+    font-size: 12px;
+    color: var(--coral);
+    line-height: 1.5;
+  }
+  .flag-row{
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--coral);
+    background: var(--coral-soft);
+    padding: 9px 11px;
+    border-radius: 10px;
+    line-height: 1.45;
+  }
+
+  .rel-section{
+    margin-top: 32px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+  }
+  .rel-section h2{
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 4px;
+  }
+  .rel-section .rel-caveat{
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin: 0 0 16px;
+    max-width: 62ch;
+    line-height: 1.5;
+  }
+  .rel-empty{
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+  .rel-list{
+    display:flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .rel-item{
+    background: var(--card);
+    border-radius: 14px;
+    padding: 13px 16px;
+    display:flex;
+    align-items:flex-start;
+    gap: 12px;
+    box-shadow: 0 1px 3px rgba(46,42,36,0.06);
+  }
+  .rel-pair{
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .rel-badge{
+    display:inline-block;
+    font-size: 10.5px;
+    font-weight: 500;
+    padding: 3px 9px;
+    border-radius: 20px;
+    margin-right: 8px;
+    vertical-align: 1px;
+  }
+  .rel-badge.numeric{ background: var(--blue-soft); color: var(--blue); }
+  .rel-badge.categorical{ background: var(--purple-soft); color: var(--purple); }
+  .rel-desc{
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+  .rel-desc b{ color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <div>
+      <div class="kicker">CSV first look</div>
+      <h1>Paste, drop, or upload a CSV</h1>
+      <p>Column types, missing values, duplicates, and outliers get pulled out automatically — nothing to configure.</p>
+    </div>
+    <button id="themeToggle" class="theme-toggle" aria-label="Switch to dark mode" aria-pressed="false" type="button">
+      <span class="toggle-track"><span class="toggle-thumb"></span></span>
+      <span class="toggle-label">Dark mode</span>
+    </button>
+  </div>
+</header>
+
+<main>
+  <div class="intake" id="intakeZone">
+    <textarea id="csvInput" placeholder="name,age,signup_date,country&#10;Amir,29,2023-04-11,EG&#10;Lina,,2023-04-12,EG&#10;..."></textarea>
+    <div class="intake-row">
+      <button id="analyzeBtn">Analyze</button>
+      <label class="file-btn" for="fileInput">or choose a .csv file (or drag one in)</label>
+      <input type="file" id="fileInput" accept=".csv,text/csv">
+      <button class="secondary" id="sampleBtn">Load sample</button>
+      <button class="secondary" id="restoreBtn" style="display:none;">Restore my data</button>
+      <span class="hint" id="rowHint"></span>
+    </div>
+    <div id="error"></div>
+  </div>
+
+  <div id="report">
+    <div class="export-bar" id="exportBar">
+      <button class="secondary" id="exportMdBtn">Export Markdown</button>
+      <button class="secondary" id="exportPdfBtn">Save as PDF</button>
+    </div>
+    <div class="summary-strip" id="summaryStrip"></div>
+    <div class="col-controls" id="colControls">
+      <input type="text" id="colSearch" placeholder="Filter columns by name…">
+      <select id="colSort">
+        <option value="file-order">File order</option>
+        <option value="most-flagged">Most flagged first</option>
+        <option value="most-missing">Most missing first</option>
+        <option value="name">Name (A–Z)</option>
+        <option value="type">Type</option>
+      </select>
+      <span class="hint" id="colCountHint"></span>
+    </div>
+    <div class="cols-grid" id="colsGrid"></div>
+    <div id="relationships"></div>
+  </div>
+</main>
+
+<script>
+const els = {
+  input: document.getElementById('csvInput'),
+  analyzeBtn: document.getElementById('analyzeBtn'),
+  sampleBtn: document.getElementById('sampleBtn'),
+  fileInput: document.getElementById('fileInput'),
+  error: document.getElementById('error'),
+  report: document.getElementById('report'),
+  summaryStrip: document.getElementById('summaryStrip'),
+  colsGrid: document.getElementById('colsGrid'),
+  rowHint: document.getElementById('rowHint'),
+  exportBar: document.getElementById('exportBar'),
+  exportMdBtn: document.getElementById('exportMdBtn'),
+  exportPdfBtn: document.getElementById('exportPdfBtn'),
+  restoreBtn: document.getElementById('restoreBtn'),
+  themeToggle: document.getElementById('themeToggle'),
+  colControls: document.getElementById('colControls'),
+  colSearch: document.getElementById('colSearch'),
+  colSort: document.getElementById('colSort'),
+  colCountHint: document.getElementById('colCountHint'),
+  intakeZone: document.getElementById('intakeZone'),
+};
+
+let lastReport = null;
+let stashedInput = null; // holds whichever dataset isn't currently loaded, for one-click restore
+
+// ---------- Theme ----------
+// Canvas bars are raster pixels, not CSS — they don't repaint themselves
+// when --blue/--teal/etc. change value, unlike the rest of the page. So
+// switching themes while a report is showing re-runs the analysis to
+// regenerate the histograms with the correct colors for the new theme.
+function applyTheme(theme){
+  document.documentElement.setAttribute('data-theme', theme);
+  els.themeToggle.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
+  els.themeToggle.setAttribute('aria-label', theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode');
+  try{ localStorage.setItem('csv-widget-theme', theme); } catch(e){ /* ignore if storage is unavailable */ }
+}
+
+(function initTheme(){
+  let stored = null;
+  try{ stored = localStorage.getItem('csv-widget-theme'); } catch(e){ /* ignore */ }
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(stored || (prefersDark ? 'dark' : 'light'));
+})();
+
+els.themeToggle.addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  if(els.report.style.display === 'block' && els.input.value.trim()){
+    // runAnalysis rebuilds the report from scratch (needed to redraw the
+    // canvas histograms in the new theme's colors, since canvas pixels
+    // don't follow CSS variables the way the rest of the page does) —
+    // but it also resets the search/sort controls as if this were a new
+    // dataset. Save and restore them so switching themes doesn't quietly
+    // clear whatever you were filtered/sorted to.
+    const savedQuery = els.colSearch.value;
+    const savedSort = els.colSort.value;
+    runAnalysis(els.input.value);
+    els.colSearch.value = savedQuery;
+    els.colSort.value = savedSort;
+    applyColumnFilterSort();
+  }
+});
+
+const MAX_ROWS = 50000;
+
+// A blind slice(0, MAX_ROWS) would only ever show the top of the file —
+// badly misleading if the data happens to be sorted (by date, region,
+// ID, anything). Instead we take a uniform random sample: a partial
+// Fisher-Yates shuffle swaps random rows into the front of the array
+// until we have MAX_ROWS of them, giving every row an equal chance of
+// being included regardless of where it sits in the file. Single pass,
+// no extra memory — just reorders the array we already have.
+function sampleRows(rows, n){
+  if(rows.length <= n) return rows;
+  const arr = rows;
+  const len = arr.length;
+  for(let i=0; i<n; i++){
+    const j = i + Math.floor(Math.random() * (len - i));
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+  }
+  return arr.slice(0, n);
+}
+
+// ---------- Delimiter detection ----------
+// Counts candidate delimiters per line (outside quotes) across a sample of
+// lines, then picks whichever is both frequent and consistent row-to-row —
+// a real delimiter appears the same number of times on almost every line;
+// a comma that's just part of the text won't.
+const DELIMITERS = [',', ';', '\t', '|'];
+
+function countOutsideQuotes(line, ch){
+  let count = 0, inQuotes = false;
+  for(let i=0;i<line.length;i++){
+    const c = line[i];
+    if(c === '"'){ inQuotes = !inQuotes; continue; }
+    if(!inQuotes && c === ch) count++;
+  }
+  return count;
+}
+
+function detectDelimiter(text){
+  const sampleLines = text.split(/\r\n|\n/).slice(0, 20).filter(l => l.trim() !== '');
+  if(sampleLines.length === 0) return ',';
+
+  let best = ',';
+  let bestScore = -1;
+
+  DELIMITERS.forEach(delim => {
+    const counts = sampleLines.map(l => countOutsideQuotes(l, delim));
+    const total = counts.reduce((a,b)=>a+b, 0);
+    if(total === 0) return;
+    const avg = total / counts.length;
+    // consistency: how many lines match the modal count for this delimiter
+    const freq = new Map();
+    counts.forEach(c => freq.set(c, (freq.get(c)||0)+1));
+    const modeCount = Math.max(...freq.values());
+    const consistency = modeCount / counts.length;
+    // score rewards both "splits into multiple columns" and "consistent across lines"
+    const score = consistency * avg;
+    if(avg > 0 && score > bestScore){
+      bestScore = score;
+      best = delim;
+    }
+  });
+
+  return best;
+}
+
+const DELIM_LABELS = { ',': 'comma', ';': 'semicolon', '\t': 'tab', '|': 'pipe' };
+
+// ---------- Encoding detection (file uploads only) ----------
+// Valid UTF-8 has strict rules for how multi-byte sequences are formed.
+// Decoding in "fatal" mode throws the moment it sees a byte sequence that
+// UTF-8 could never produce — which is exactly what happens when a file
+// was actually saved as Windows-1252/Latin-1 (common from older Excel
+// exports) and contains e.g. an accented letter or a curly quote.
+// If strict UTF-8 decoding fails, we fall back to Windows-1252, which
+// accepts virtually any byte and is the most common real-world culprit.
+function decodeFileBuffer(buffer){
+  try{
+    const text = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
+    return { text, encoding: 'UTF-8' };
+  } catch(e){
+    const text = new TextDecoder('windows-1252').decode(buffer);
+    return { text, encoding: 'Windows-1252' };
+  }
+}
+
+// ---------- CSV parsing (RFC4180-ish, handles quotes/delimiters/newlines) ----------
+function parseCSV(text, delimiter){
+  const delim = delimiter || ',';
+  const rows = [];
+  let row = [];
+  let field = '';
+  let inQuotes = false;
+  let i = 0;
+  const len = text.length;
+
+  while(i < len){
+    const c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += c; i++; continue;
+    } else {
+      if(c === '"'){ inQuotes = true; i++; continue; }
+      if(c === delim){ row.push(field); field = ''; i++; continue; }
+      if(c === '\r'){ i++; continue; }
+      if(c === '\n'){
+        row.push(field); field = '';
+        rows.push(row); row = [];
+        i++; continue;
+      }
+      field += c; i++; continue;
+    }
+  }
+  if(field.length > 0 || row.length > 0){ row.push(field); rows.push(row); }
+  return rows.filter(r => !(r.length === 1 && r[0] === ''));
+}
+
+// ---------- Type inference helpers ----------
+const NULL_TOKENS = new Set(['', 'na', 'n/a', 'null', 'nan', 'none', '-', '?']);
+function isNullish(v){ return NULL_TOKENS.has(String(v).trim().toLowerCase()); }
+
+const INT_RE = /^-?\d+$/;
+const FLOAT_RE = /^-?\d*\.\d+$|^-?\d+\.\d*$/;
+const BOOL_SET = new Set(['true','false','yes','no']);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?$|^\d{1,2}\/\d{1,2}\/\d{2,4}$/;
+
+// A column only needs to be "mostly" a type to be treated as that type —
+// one stray "unknown" in a column of ages shouldn't demote the whole
+// column to plain text and throw away every numeric stat. We require a
+// strong majority (90%+) AND a minimum sample size, so a 4-row column
+// with one typo doesn't get misclassified on too little evidence.
+const MIXED_TYPE_THRESHOLD = 0.9;
+const MIXED_TYPE_MIN_SAMPLE = 20;
+
+function splitByPredicate(nonNull, predicate){
+  const clean = [], stragglers = [];
+  nonNull.forEach(v => (predicate(v) ? clean : stragglers).push(v));
+  return { clean, stragglers, ratio: clean.length / nonNull.length };
+}
+
+function inferType(values){
+  const nonNull = values.filter(v => !isNullish(v));
+  if(nonNull.length === 0) return { type: 'text', cleanValues: [], stragglers: [] };
+
+  const candidates = [
+    { type: 'integer', test: v => INT_RE.test(v.trim()) },
+    { type: 'float',   test: v => INT_RE.test(v.trim()) || FLOAT_RE.test(v.trim()) },
+    { type: 'boolean', test: v => BOOL_SET.has(v.trim().toLowerCase()) },
+    { type: 'date',    test: v => DATE_RE.test(v.trim()) && !isNaN(Date.parse(v.trim())) },
+  ];
+
+  for(const c of candidates){
+    const { clean, stragglers, ratio } = splitByPredicate(nonNull, c.test);
+    if(ratio === 1){
+      return { type: c.type, cleanValues: clean, stragglers: [] };
+    }
+    if(ratio >= MIXED_TYPE_THRESHOLD && nonNull.length >= MIXED_TYPE_MIN_SAMPLE){
+      return { type: c.type, cleanValues: clean, stragglers };
+    }
+  }
+
+  const uniqueRatio = new Set(nonNull.map(v=>v.trim())).size / nonNull.length;
+  const type = (uniqueRatio < 0.6 || nonNull.length < 12) ? 'categorical' : 'text';
+  return { type, cleanValues: nonNull, stragglers: [] };
+}
+
+function mean(arr){ return arr.reduce((a,b)=>a+b,0) / arr.length; }
+function median(sorted){
+  const n = sorted.length;
+  const mid = Math.floor(n/2);
+  return n % 2 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+}
+function stddev(arr, m){
+  const v = mean(arr.map(x => (x-m)*(x-m)));
+  return Math.sqrt(v);
+}
+
+function skewness(nums, m, sd){
+  if(sd === 0) return 0;
+  return mean(nums.map(x => Math.pow((x-m)/sd, 3)));
+}
+
+// Tukey's IQR fences assume roughly symmetric data. A right-skewed
+// distribution (salary, price, population — anything with a long tail
+// on one side) breaks that assumption: the fences either get dragged
+// wide by the tail (missing real outliers) or flag a bunch of ordinary
+// high values as anomalies. If a column is meaningfully skewed and
+// strictly positive, we run the IQR math in log space instead — taking
+// the log of a right-skewed distribution tends to make it roughly
+// symmetric, so IQR becomes meaningful again, and converting the
+// resulting fences back with exp() gives correctly asymmetric bounds
+// on the original scale (a wider allowance on the high end, tighter on
+// the low end) rather than one-size-fits-all fences.
+function iqrFences(nums){
+  const q1 = median(nums.slice(0, Math.floor(nums.length/2)));
+  const q3 = median(nums.slice(Math.ceil(nums.length/2)));
+  const iqr = q3 - q1;
+  return { low: q1 - 1.5*iqr, high: q3 + 1.5*iqr };
+}
+
+function analyzeNumeric(nonNullStrings){
+  const nums = nonNullStrings.map(Number).sort((a,b)=>a-b);
+  const m = mean(nums);
+  const med = median(nums);
+  const sd = stddev(nums, m);
+  const skew = skewness(nums, m, sd);
+
+  const allPositive = nums[0] > 0;
+  const isSkewed = Math.abs(skew) > 1;
+  let fences, method;
+
+  if(isSkewed && allPositive){
+    const logNums = nums.map(Math.log);
+    const logFences = iqrFences(logNums);
+    fences = { low: Math.exp(logFences.low), high: Math.exp(logFences.high) };
+    method = 'log-adjusted';
+  } else {
+    fences = iqrFences(nums);
+    method = 'linear';
+  }
+
+  const outliers = nums.filter(n => n < fences.low || n > fences.high);
+  return { nums, min: nums[0], max: nums[nums.length-1], mean: m, median: med, std: sd, outlierCount: outliers.length, outlierMethod: method };
+}
+
+function analyzeDates(cleanStrings){
+  const timestamps = cleanStrings.map(v => new Date(v.trim()).getTime()).sort((a,b)=>a-b);
+  const uniqueTimestamps = [...new Set(timestamps)];
+  const spanDays = (timestamps[timestamps.length-1] - timestamps[0]) / 86400000;
+
+  // Median gap between consecutive distinct dates gives us the "expected"
+  // cadence (e.g. ~1 day for daily logs, ~7 for weekly reports). A gap
+  // much larger than that median is a real interruption in the data,
+  // not just normal spacing — e.g. daily logs that suddenly skip six weeks.
+  let largestGap = null;
+  if(uniqueTimestamps.length >= 3){
+    const gapsDays = [];
+    for(let i=1;i<uniqueTimestamps.length;i++){
+      gapsDays.push((uniqueTimestamps[i]-uniqueTimestamps[i-1]) / 86400000);
+    }
+    const medianGap = median([...gapsDays].sort((a,b)=>a-b));
+    let maxGap = -1, maxGapIdx = -1;
+    gapsDays.forEach((g,i)=>{ if(g > maxGap){ maxGap = g; maxGapIdx = i; } });
+    const threshold = Math.max(medianGap * 4, medianGap + 3);
+    if(maxGap > threshold && maxGap >= 3){
+      largestGap = { days: maxGap, medianGap, from: uniqueTimestamps[maxGapIdx], to: uniqueTimestamps[maxGapIdx+1] };
+    }
+  }
+
+  return { timestamps, uniqueTimestamps, min: timestamps[0], max: timestamps[timestamps.length-1], spanDays, largestGap };
+}
+
+function formatDate(ts){
+  return new Date(ts).toLocaleDateString(undefined, { year:'numeric', month:'short', day:'numeric' });
+}
+
+// Freedman–Diaconis: bin width scales with the data's actual spread (IQR),
+// not just row count, so a tight cluster of values gets finer bins and a
+// widely spread one gets coarser ones — rather than every column, big or
+// small, being forced into the same fixed bin count. Falls back to the
+// simpler square-root rule when IQR is 0 (heavily clustered/discrete
+// data, where Freedman-Diaconis's division by IQR would blow up), and
+// is capped at both ends so a 3-row column or a 50,000-row one still
+// produce a sane, readable number of bins.
+function computeBinCount(sortedNums){
+  const n = sortedNums.length;
+  if(n < 2) return 1;
+  const range = sortedNums[n-1] - sortedNums[0];
+  if(range === 0) return 1;
+
+  const q1 = median(sortedNums.slice(0, Math.floor(n/2)));
+  const q3 = median(sortedNums.slice(Math.ceil(n/2)));
+  const iqr = q3 - q1;
+
+  let bins;
+  if(iqr === 0){
+    bins = Math.ceil(Math.sqrt(n));
+  } else {
+    const binWidth = 2 * iqr / Math.cbrt(n);
+    bins = Math.round(range / binWidth);
+  }
+  return Math.min(14, Math.max(4, bins));
+}
+
+function buildHistogram(nums, bins){
+  const min = nums[0], max = nums[nums.length-1];
+  if(min === max) return [{count: nums.length, from:min, to:max}];
+  if(!bins) bins = computeBinCount(nums);
+  const width = (max-min)/bins;
+  const counts = new Array(bins).fill(0);
+  nums.forEach(n=>{
+    let idx = Math.floor((n-min)/width);
+    if(idx >= bins) idx = bins-1;
+    counts[idx]++;
+  });
+  return counts.map((c,i)=>({count:c, from: min+i*width, to: min+(i+1)*width}));
+}
+
+function topValues(nonNullStrings, k=3){
+  const counts = new Map();
+  nonNullStrings.forEach(v=>{
+    const key = v.trim();
+    counts.set(key, (counts.get(key)||0)+1);
+  });
+  return [...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,k);
+}
+
+// ---------- Cross-column relationships ----------
+// Two checks, both descriptive rather than diagnostic: they report what
+// the data does, not why. Capped in both directions (max columns
+// compared, min sample size, minimum strength to report) so this stays
+// fast and only surfaces things actually worth a second look.
+const REL_MAX_COLS_PER_TYPE = 20;   // bound pairwise comparisons: k columns -> k*(k-1)/2 pairs
+const CORR_MIN_OVERLAP = 10;        // don't trust r from a handful of shared rows
+const CORR_THRESHOLD = 0.7;         // only report "strong" correlation
+const DEP_MIN_ROWS = 20;
+const DEP_RATIO_THRESHOLD = 0.95;
+const DEP_TRIVIALITY_GUARD = 0.9;   // a column that's ~all-unique trivially "determines" anything
+
+function numericSeries(col){
+  return col.values.map(v => {
+    if(isNullish(v)) return null;
+    const t = v.trim();
+    if(INT_RE.test(t) || FLOAT_RE.test(t)) return Number(t);
+    return null;
+  });
+}
+function categoricalSeries(col){
+  return col.values.map(v => isNullish(v) ? null : v.trim());
+}
+
+function pearson(xs, ys){
+  const n = xs.length;
+  const mx = mean(xs), my = mean(ys);
+  let num=0, dx2=0, dy2=0;
+  for(let i=0;i<n;i++){
+    const dx = xs[i]-mx, dy = ys[i]-my;
+    num += dx*dy; dx2 += dx*dx; dy2 += dy*dy;
+  }
+  const denom = Math.sqrt(dx2*dy2);
+  return denom === 0 ? 0 : num/denom;
+}
+
+// ratio = fraction of rows where, given groupSeries[i], targetSeries[i]
+// matches the most common target value seen for that group value. 1.0
+// means the grouping value fully determines the target in this data.
+function functionalDependencyRatio(groupSeries, targetSeries){
+  const groups = new Map(); // groupVal -> Map(targetVal -> count)
+  let total = 0;
+  for(let i=0;i<groupSeries.length;i++){
+    const g = groupSeries[i], t = targetSeries[i];
+    if(g === null || t === null) continue;
+    total++;
+    if(!groups.has(g)) groups.set(g, new Map());
+    const m = groups.get(g);
+    m.set(t, (m.get(t)||0) + 1);
+  }
+  if(total === 0) return { ratio: 0, total: 0, distinctGroups: 0 };
+  let matched = 0;
+  groups.forEach(m => { matched += Math.max(...m.values()); });
+  return { ratio: matched/total, total, distinctGroups: groups.size };
+}
+
+function computeRelationships(columns){
+  // A constant column is trivially "determined" by everything and trivially
+  // uncorrelated with everything — including it just produces noise (three
+  // relationship entries all really just restating "this column never
+  // changes," which is already flagged on that column's own card).
+  const isConstant = c => c.nonNull.length > 0 && c.uniqueCount === 1;
+  const numericCols = columns.filter(c => (c.type === 'integer' || c.type === 'float') && !isConstant(c)).slice(0, REL_MAX_COLS_PER_TYPE);
+  const categoricalCols = columns.filter(c => (c.type === 'categorical' || c.type === 'boolean') && !isConstant(c)).slice(0, REL_MAX_COLS_PER_TYPE);
+
+  const truncated = {
+    numeric: columns.filter(c => (c.type==='integer'||c.type==='float') && !isConstant(c)).length > numericCols.length,
+    categorical: columns.filter(c => (c.type==='categorical'||c.type==='boolean') && !isConstant(c)).length > categoricalCols.length
+  };
+
+  const results = [];
+
+  // Numeric correlation
+  const numSeriesCache = numericCols.map(c => numericSeries(c));
+  for(let i=0;i<numericCols.length;i++){
+    for(let j=i+1;j<numericCols.length;j++){
+      const xs = [], ys = [];
+      const a = numSeriesCache[i], b = numSeriesCache[j];
+      for(let k=0;k<a.length;k++){
+        if(a[k] !== null && b[k] !== null){ xs.push(a[k]); ys.push(b[k]); }
+      }
+      if(xs.length < CORR_MIN_OVERLAP) continue;
+      const r = pearson(xs, ys);
+      if(Math.abs(r) >= CORR_THRESHOLD){
+        results.push({
+          kind: 'numeric',
+          strength: Math.abs(r),
+          colA: numericCols[i].name,
+          colB: numericCols[j].name,
+          r
+        });
+      }
+    }
+  }
+
+  // Categorical functional dependency
+  const catSeriesCache = categoricalCols.map(c => categoricalSeries(c));
+  for(let i=0;i<categoricalCols.length;i++){
+    for(let j=i+1;j<categoricalCols.length;j++){
+      const a = catSeriesCache[i], b = catSeriesCache[j];
+      const fwd = functionalDependencyRatio(a, b); // does A determine B?
+      const bwd = functionalDependencyRatio(b, a); // does B determine A?
+      if(fwd.total < DEP_MIN_ROWS) continue;
+
+      const fwdOk = fwd.ratio >= DEP_RATIO_THRESHOLD && (fwd.distinctGroups/fwd.total) <= DEP_TRIVIALITY_GUARD;
+      const bwdOk = bwd.ratio >= DEP_RATIO_THRESHOLD && (bwd.distinctGroups/bwd.total) <= DEP_TRIVIALITY_GUARD;
+      if(!fwdOk && !bwdOk) continue;
+
+      results.push({
+        kind: 'categorical',
+        strength: Math.max(fwdOk?fwd.ratio:0, bwdOk?bwd.ratio:0),
+        colA: categoricalCols[i].name,
+        colB: categoricalCols[j].name,
+        mutual: fwdOk && bwdOk,
+        forwardRatio: fwdOk ? fwd.ratio : null,
+        backwardRatio: bwdOk ? bwd.ratio : null
+      });
+    }
+  }
+
+  results.sort((x,y) => y.strength - x.strength);
+  return { relationships: results.slice(0, 8), truncated };
+}
+
+function describeRelationship(rel){
+  if(rel.kind === 'numeric'){
+    const direction = rel.r > 0 ? 'tend to rise together' : 'tend to move in opposite directions';
+    return `<b>${escapeHTML(rel.colA)}</b> and <b>${escapeHTML(rel.colB)}</b> ${direction} in this data (r = ${rel.r.toFixed(2)}).`;
+  }
+  // categorical
+  if(rel.mutual){
+    return `Every <b>${escapeHTML(rel.colA)}</b> value pairs with one <b>${escapeHTML(rel.colB)}</b> value, and vice versa — they may be encoding overlapping information.`;
+  }
+  if(rel.forwardRatio !== null){
+    const pct = Math.round(rel.forwardRatio*100);
+    return pct >= 100
+      ? `Every row with the same <b>${escapeHTML(rel.colA)}</b> also has the same <b>${escapeHTML(rel.colB)}</b>.`
+      : `Rows with the same <b>${escapeHTML(rel.colA)}</b> share the same <b>${escapeHTML(rel.colB)}</b> in about ${pct}% of cases — the rest may be worth a look.`;
+  }
+  const pct = Math.round(rel.backwardRatio*100);
+  return pct >= 100
+    ? `Every row with the same <b>${escapeHTML(rel.colB)}</b> also has the same <b>${escapeHTML(rel.colA)}</b>.`
+    : `Rows with the same <b>${escapeHTML(rel.colB)}</b> share the same <b>${escapeHTML(rel.colA)}</b> in about ${pct}% of cases — the rest may be worth a look.`;
+}
+
+function renderRelationships(columns){
+  const { relationships, truncated } = computeRelationships(columns);
+  const container = document.getElementById('relationships');
+
+  let html = `<div class="rel-section"><h2>Relationships between columns</h2>
+    <p class="rel-caveat">These are patterns observed in this data, not evidence that one causes the other.</p>`;
+
+  if(relationships.length === 0){
+    html += `<div class="rel-empty">No strong relationships found between columns.</div>`;
+  } else {
+    html += `<div class="rel-list">` + relationships.map(rel => `
+      <div class="rel-item">
+        <div class="rel-pair">${escapeHTML(rel.colA)} \u2194 ${escapeHTML(rel.colB)}</div>
+        <div class="rel-desc"><span class="rel-badge ${rel.kind}">${rel.kind}</span>${describeRelationship(rel)}</div>
+      </div>
+    `).join('') + `</div>`;
+  }
+
+  if(truncated.numeric || truncated.categorical){
+    const parts = [];
+    if(truncated.numeric) parts.push('numeric');
+    if(truncated.categorical) parts.push('categorical');
+    html += `<div class="rel-empty" style="margin-top:10px;">compared only the first ${REL_MAX_COLS_PER_TYPE} ${parts.join(' and ')} columns</div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+  return relationships;
+}
+
+// ---------- Rendering ----------
+function drawBarSpark(canvas, bars, color){
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const cssW = canvas.clientWidth || 260;
+  const cssH = 44;
+  canvas.width = cssW*dpr; canvas.height = cssH*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,cssW,cssH);
+
+  const max = Math.max(...bars.map(b=>b.count), 1);
+  const gap = 2;
+  const bw = (cssW - gap*(bars.length-1)) / bars.length;
+
+  bars.forEach((b,i)=>{
+    const h = (b.count/max) * (cssH-4);
+    const x = i*(bw+gap);
+    const y = cssH - h;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = b.count===0 ? 0.15 : 0.85;
+    const r = Math.min(3, bw/2, h);
+    if(h > 0 && ctx.roundRect){
+      ctx.beginPath();
+      ctx.roundRect(x, y, bw, h, [r, r, 0, 0]);
+      ctx.fill();
+    } else {
+      ctx.fillRect(x, y, bw, h);
+    }
+  });
+  ctx.globalAlpha = 1;
+}
+
+function fmt(n){
+  if(Math.abs(n) >= 1000) return n.toLocaleString(undefined, {maximumFractionDigits:1});
+  return Math.round(n*100)/100;
+}
+
+function renderReport(headers, rows){
+  const totalRows = rows.length;
+  const totalCells = totalRows * headers.length;
+  let missingCells = 0;
+
+  const seenRowKeys = new Set();
+  let dupCount = 0;
+  rows.forEach(r=>{
+    const key = r.join('\u0001');
+    if(seenRowKeys.has(key)) dupCount++;
+    else seenRowKeys.add(key);
+  });
+
+  const columns = headers.map((h, ci) => {
+    const values = rows.map(r => (r[ci] !== undefined ? r[ci] : ''));
+    const nulls = values.filter(isNullish);
+    missingCells += nulls.length;
+    const nonNull = values.filter(v => !isNullish(v));
+    const { type, cleanValues, stragglers } = inferType(values);
+    const uniqueCount = new Set(nonNull.map(v=>v.trim())).size;
+    return { name: h || '(unnamed)', values, nonNull, nulls, type, cleanValues, stragglers, uniqueCount, originalIndex: ci };
+  });
+
+  const missingPct = totalCells ? (missingCells/totalCells*100) : 0;
+
+  els.summaryStrip.innerHTML = `
+    <div class="stat"><div class="num">${totalRows.toLocaleString()}</div><div class="label">Rows</div></div>
+    <div class="stat"><div class="num">${headers.length}</div><div class="label">Columns</div></div>
+    <div class="stat"><div class="num ${missingPct>5?'flagged':''}">${fmt(missingPct)}%</div><div class="label">Missing cells</div></div>
+    <div class="stat"><div class="num ${dupCount>0?'flagged':''}">${dupCount.toLocaleString()}</div><div class="label">Duplicate rows</div></div>
+  `;
+
+  els.colsGrid.innerHTML = '';
+
+  columns.forEach(col=>{
+    const card = document.createElement('div');
+    card.className = 'col-card';
+
+    const nullPct = col.values.length ? (col.nulls.length/col.values.length*100) : 0;
+    const cardinalityRatio = col.nonNull.length ? col.uniqueCount/col.nonNull.length : 0;
+    const isConstant = col.nonNull.length > 0 && col.uniqueCount === 1;
+    const isMixed = col.stragglers.length > 0;
+
+    let statsHTML = '';
+    let canvasBars = null;
+    let barColor = 'var(--text-dim)';
+    let flags = [];
+
+    if(isConstant){
+      flags.push(`every row has the same value — ${col.nonNull[0].trim()}`);
+    }
+    if(isMixed){
+      const sample = [...new Set(col.stragglers.map(v=>v.trim()))].slice(0,3);
+      const shown = sample.map(v => `"${v}"`).join(', ');
+      const more = col.stragglers.length > sample.length ? ` and ${col.stragglers.length - sample.length} more` : '';
+      flags.push(`mostly ${col.type}, but ${col.stragglers.length} value${col.stragglers.length>1?'s':''} don't fit: ${shown}${more}`);
+    }
+
+    if(col.type === 'integer' || col.type === 'float'){
+      const a = analyzeNumeric(col.cleanValues);
+      barColor = getComputedStyle(document.documentElement).getPropertyValue('--blue').trim();
+      canvasBars = buildHistogram(a.nums);
+      statsHTML = `
+        <div class="stats-line">
+          min <b>${fmt(a.min)}</b> · max <b>${fmt(a.max)}</b><br>
+          mean <b>${fmt(a.mean)}</b> · median <b>${fmt(a.median)}</b> · std <b>${fmt(a.std)}</b>
+        </div>`;
+      if(a.outlierCount > 0){
+        const methodNote = a.outlierMethod === 'log-adjusted' ? ' (adjusted for this column\u2019s right-skew)' : '';
+        flags.push(`${a.outlierCount} value${a.outlierCount>1?'s':''} sit${a.outlierCount>1?'':'s'} well outside the normal range${methodNote}`);
+      }
+    } else if(col.type === 'categorical' || col.type === 'boolean' || col.type === 'text'){
+      const tv = topValues(col.nonNull, col.type==='boolean' ? 2 : 4);
+      barColor = getComputedStyle(document.documentElement).getPropertyValue('--teal').trim();
+      canvasBars = tv.map(([k,c])=>({count:c}));
+      statsHTML = `<div class="top-values">` + tv.map(([k,c])=>
+        `<div class="tv-row"><span>${escapeHTML(k)}</span><span>${c}</span></div>`
+      ).join('') + `</div>`;
+      if(col.type !== 'boolean' && cardinalityRatio > 0.9 && col.nonNull.length > 20){
+        flags.push(`nearly every value is unique — this might be an ID, not a category`);
+      }
+    } else if(col.type === 'date'){
+      const a = analyzeDates(col.cleanValues);
+      barColor = getComputedStyle(document.documentElement).getPropertyValue('--purple').trim();
+      canvasBars = buildHistogram(a.timestamps);
+      statsHTML = `
+        <div class="stats-line">
+          from <b>${formatDate(a.min)}</b> to <b>${formatDate(a.max)}</b><br>
+          spans <b>${fmt(a.spanDays)}</b> days · ${a.uniqueTimestamps.length.toLocaleString()} distinct dates
+        </div>`;
+      if(a.largestGap){
+        flags.push(`no data between ${formatDate(a.largestGap.from)} and ${formatDate(a.largestGap.to)} — a ${Math.round(a.largestGap.days)}-day gap, vs. the usual ~${fmt(a.largestGap.medianGap)}`);
+      }
+    }
+
+    if(nullPct > 20){
+      flags.push(`${fmt(nullPct)}% missing — worth checking before you model this`);
+    }
+
+    col.reportFlags = flags;
+    col.nullPct = nullPct;
+    col.isConstant = isConstant;
+    col.isMixed = isMixed;
+    col.statsText = statsHTML.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const pillClass = 'type-' + col.type;
+
+    card.innerHTML = `
+      <div class="col-card-head">
+        <div class="col-name">${escapeHTML(col.name)}</div>
+        <div style="display:flex; gap:5px; flex-shrink:0;">
+          ${isConstant ? '<div class="type-pill type-constant">constant</div>' : ''}
+          ${isMixed ? '<div class="type-pill type-constant">mixed</div>' : ''}
+          <div class="type-pill ${pillClass}">${col.type}</div>
+        </div>
+      </div>
+    `;
+
+    if(canvasBars){
+      const canvas = document.createElement('canvas');
+      canvas.className = 'spark';
+      card.appendChild(canvas);
+      requestAnimationFrame(()=> drawBarSpark(canvas, canvasBars, barColor));
+    }
+
+    const statsDiv = document.createElement('div');
+    statsDiv.innerHTML = statsHTML;
+    card.appendChild(statsDiv);
+
+    flags.forEach(f=>{
+      const row = document.createElement('div');
+      row.className = 'flag-row';
+      row.innerHTML = `<span class="flag">${escapeHTML(f)}</span>`;
+      card.appendChild(row);
+    });
+
+    els.colsGrid.appendChild(card);
+    col.cardEl = card;
+  });
+
+  const relationships = renderRelationships(columns);
+
+  lastReport = { totalRows, totalCols: headers.length, missingPct, dupCount, columns, relationships };
+  els.exportBar.style.display = 'flex';
+  els.colControls.style.display = 'flex';
+  els.colSearch.value = '';
+  els.colSort.value = 'file-order';
+  applyColumnFilterSort();
+
+  els.report.style.display = 'block';
+}
+
+function escapeHTML(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// Two columns named the same thing would otherwise render as two
+// identical-looking cards, and if compared in the Relationships section
+// would show a confusing "name ↔ name" label with no way to tell which
+// is which — so repeats get a disambiguating suffix.
+function dedupeHeaders(headers){
+  const seen = new Map();
+  return headers.map(h => {
+    const count = (seen.get(h) || 0) + 1;
+    seen.set(h, count);
+    return count === 1 ? h : `${h} (${count})`;
+  });
+}
+
+function runAnalysis(text, encodingNote){
+  els.error.style.display = 'none';
+  els.rowHint.textContent = '';
+  try{
+    // Strip a leading byte-order mark — "CSV UTF-8" exports from Excel
+    // almost always include one, and left in place it silently attaches
+    // itself to the first header's name (e.g. "name" becomes "\uFEFFname"),
+    // which looks broken and won't match anything expecting the plain text.
+    const trimmed = text.replace(/^\uFEFF/, '').trim();
+    const delimiter = detectDelimiter(trimmed);
+    const parsed = parseCSV(trimmed, delimiter);
+    if(parsed.length < 2){
+      throw new Error("Couldn't find a header row plus at least one data row.");
+    }
+    const headers = dedupeHeaders(parsed[0].map(h => h.trim()));
+    let dataRows = parsed.slice(1);
+    const originalRowCount = dataRows.length;
+    let sampled = false;
+    if(dataRows.length > MAX_ROWS){
+      dataRows = sampleRows(dataRows, MAX_ROWS);
+      sampled = true;
+    }
+    renderReport(headers, dataRows);
+    const hints = [];
+    if(encodingNote){
+      hints.push(encodingNote);
+    }
+    if(delimiter !== ','){
+      hints.push(`detected ${DELIM_LABELS[delimiter]}-delimited`);
+    }
+    if(sampled){
+      hints.push(`randomly sampled ${MAX_ROWS.toLocaleString()} of ${originalRowCount.toLocaleString()} rows`);
+    }
+    els.rowHint.textContent = hints.join(' · ');
+  } catch(err){
+    els.error.textContent = 'Couldn\u2019t read that as CSV — ' + err.message;
+    els.error.style.display = 'block';
+    els.report.style.display = 'none';
+    els.exportBar.style.display = 'none';
+    els.colControls.style.display = 'none';
+  }
+}
+
+// ---------- Column search & sort ----------
+// Cards already exist in the DOM from renderReport — this just toggles
+// visibility (filter) and re-appends in a new order (sort), rather than
+// re-running analysis, so it stays instant even on large column counts.
+function applyColumnFilterSort(){
+  if(!lastReport) return;
+  const query = els.colSearch.value.trim().toLowerCase();
+  const sortKey = els.colSort.value;
+
+  const sorted = [...lastReport.columns].sort((a,b)=>{
+    switch(sortKey){
+      case 'most-flagged': {
+        const diff = (b.reportFlags?.length||0) - (a.reportFlags?.length||0);
+        return diff !== 0 ? diff : a.originalIndex - b.originalIndex;
+      }
+      case 'most-missing': {
+        const diff = (b.nullPct||0) - (a.nullPct||0);
+        return diff !== 0 ? diff : a.originalIndex - b.originalIndex;
+      }
+      case 'name':
+        return a.name.localeCompare(b.name);
+      case 'type': {
+        const diff = a.type.localeCompare(b.type);
+        return diff !== 0 ? diff : a.name.localeCompare(b.name);
+      }
+      case 'file-order':
+      default:
+        return a.originalIndex - b.originalIndex;
+    }
+  });
+
+  let visibleCount = 0;
+  sorted.forEach(col=>{
+    if(!col.cardEl) return;
+    const matches = !query || col.name.toLowerCase().includes(query);
+    col.cardEl.style.display = matches ? '' : 'none';
+    if(matches) visibleCount++;
+    els.colsGrid.appendChild(col.cardEl); // re-appending an existing node moves it, doesn't duplicate it
+  });
+
+  const total = lastReport.columns.length;
+  els.colCountHint.textContent = query ? `${visibleCount} of ${total} columns shown` : '';
+}
+
+els.colSearch.addEventListener('input', applyColumnFilterSort);
+els.colSort.addEventListener('change', applyColumnFilterSort);
+
+els.analyzeBtn.addEventListener('click', () => runAnalysis(els.input.value));
+
+function handleFile(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const { text, encoding } = decodeFileBuffer(reader.result);
+    els.input.value = text;
+    const note = encoding !== 'UTF-8' ? `decoded as ${encoding} (not UTF-8)` : null;
+    runAnalysis(text, note);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+els.fileInput.addEventListener('change', (e) => {
+  handleFile(e.target.files[0]);
+});
+
+// A dragenter/dragleave counter, rather than checking e.target directly,
+// because dragleave fires whenever the pointer crosses into a child
+// element (the textarea, the buttons) — without counting enter/leave
+// pairs the highlight would flicker on and off while dragging over the
+// zone's own contents instead of staying steady until you actually leave.
+let dragDepth = 0;
+
+els.intakeZone.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragDepth++;
+  els.intakeZone.classList.add('drag-active');
+});
+els.intakeZone.addEventListener('dragover', (e) => {
+  e.preventDefault(); // required, or the browser refuses the drop entirely
+});
+els.intakeZone.addEventListener('dragleave', () => {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if(dragDepth === 0) els.intakeZone.classList.remove('drag-active');
+});
+els.intakeZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  els.intakeZone.classList.remove('drag-active');
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  handleFile(file);
+});
+
+const SAMPLE = `name,age,department,salary,hire_date,active
+Amir Nasser,29,Engineering,68000,2021-03-14,true
+Lina Farouk,34,Engineering,81000,2019-07-01,true
+Omar Haddad,,Design,59000,2022-01-19,true
+Sara Aziz,41,Engineering,250000,2018-05-22,true
+Yusuf Karam,26,Sales,52000,2023-02-10,false
+Nour Salah,29,Design,60500,2020-11-03,true
+Karim Fathy,,Sales,51000,2021-09-17,true
+Dina Mostafa,38,Engineering,84000,2017-06-30,true
+Hassan Adel,31,Sales,53500,2022-08-08,true
+Mariam Tarek,45,Engineering,3,2016-02-14,true
+Tarek Aziz,29,Design,61000,2020-11-03,true
+Aya Ibrahim,27,Sales,50500,2023-05-01,false`;
+
+els.sampleBtn.addEventListener('click', () => {
+  const current = els.input.value;
+  if(current.trim() && current !== SAMPLE){
+    stashedInput = current;
+    els.restoreBtn.style.display = 'inline-block';
+  }
+  els.input.value = SAMPLE;
+  runAnalysis(SAMPLE);
+});
+
+els.restoreBtn.addEventListener('click', () => {
+  if(!stashedInput) return;
+  els.input.value = stashedInput;
+  runAnalysis(stashedInput);
+  stashedInput = null;
+  els.restoreBtn.style.display = 'none';
+});
+
+// ---------- Export ----------
+function downloadText(filename, text){
+  const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function generateMarkdown(report){
+  const lines = [];
+  lines.push(`# CSV First Look`);
+  lines.push('');
+  lines.push(`- **Rows:** ${report.totalRows.toLocaleString()}`);
+  lines.push(`- **Columns:** ${report.totalCols}`);
+  lines.push(`- **Missing cells:** ${fmt(report.missingPct)}%`);
+  lines.push(`- **Duplicate rows:** ${report.dupCount.toLocaleString()}`);
+  lines.push('');
+  lines.push(`## Columns`);
+
+  report.columns.forEach(col=>{
+    lines.push('');
+    const badges = [];
+    if(col.isConstant) badges.push('constant');
+    if(col.isMixed) badges.push('mixed');
+    const badgeText = badges.length ? ` (${badges.join(', ')})` : '';
+    lines.push(`### ${col.name} — ${col.type}${badgeText}`);
+    if(col.statsText){
+      lines.push(col.statsText);
+    }
+    if(col.reportFlags && col.reportFlags.length){
+      col.reportFlags.forEach(f => lines.push(`- \u26a0 ${f}`));
+    }
+  });
+
+  if(report.relationships && report.relationships.length){
+    lines.push('');
+    lines.push(`## Relationships between columns`);
+    lines.push(`_These are patterns observed in this data, not evidence that one causes the other._`);
+    report.relationships.forEach(rel=>{
+      const desc = describeRelationship(rel).replace(/<[^>]+>/g, '');
+      lines.push('');
+      lines.push(`- **${rel.colA} \u2194 ${rel.colB}** (${rel.kind}): ${desc}`);
+    });
+  }
+
+  lines.push('');
+  lines.push(`_Generated by the CSV first-look widget._`);
+  return lines.join('\n');
+}
+
+els.exportMdBtn.addEventListener('click', () => {
+  if(!lastReport) return;
+  downloadText('csv-report.md', generateMarkdown(lastReport));
+});
+
+// A plain window.print() here is unreliable: if this page happens to be
+// running inside a sandboxed preview iframe (rather than a plain browser
+// tab), print can get blocked or produce a blank page — and separately,
+// canvas charts don't carry over through most "copy this HTML" paths
+// because canvas pixel data isn't part of the page's HTML source at all.
+// So instead: open a genuine new top-level tab (sidesteps iframe
+// restrictions), bake every histogram canvas into a real <img> via
+// toDataURL() first (sidesteps the canvas-data problem), and print that.
+els.exportPdfBtn.addEventListener('click', () => {
+  if(!lastReport){ return; }
+
+  const styleText = document.querySelector('style').textContent;
+  const fontLinks = [...document.querySelectorAll('link[rel="stylesheet"]')]
+    .map(l => l.outerHTML).join('\n');
+
+  const clone = els.report.cloneNode(true);
+  const exportBarClone = clone.querySelector('#exportBar');
+  if(exportBarClone) exportBarClone.remove();
+
+  const liveCanvases = els.report.querySelectorAll('canvas.spark');
+  const cloneCanvases = clone.querySelectorAll('canvas.spark');
+  cloneCanvases.forEach((canvasEl, i) => {
+    const liveCanvas = liveCanvases[i];
+    if(!liveCanvas) return;
+    const img = document.createElement('img');
+    img.className = 'spark';
+    img.style.width = '100%';
+    img.style.height = '44px';
+    img.style.display = 'block';
+    try{
+      img.src = liveCanvas.toDataURL('image/png');
+    } catch(e){ /* leave canvas as-is if this ever fails */ }
+    canvasEl.replaceWith(img);
+  });
+
+  const printWindow = window.open('', '_blank');
+  if(!printWindow){
+    alert('Your browser blocked the print window as a pop-up. Please allow pop-ups for this page and try again.');
+    return;
+  }
+
+  printWindow.document.open();
+  printWindow.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+    <title>CSV Report</title>
+    ${fontLinks}
+    <style>${styleText}</style>
+    <style>
+      body{ background: #fff; padding: 24px; }
+      #report{ display:block !important; margin-top:0; }
+    </style>
+  </head><body>${clone.outerHTML}</body></html>`);
+  printWindow.document.close();
+
+  let printed = false;
+  const doPrint = () => {
+    if(printed) return;
+    printed = true;
+    printWindow.focus();
+    printWindow.print();
+  };
+  printWindow.onload = doPrint;
+  setTimeout(doPrint, 700); // fallback in case onload doesn't fire for a blank-origin document
+});
+</script>
+</body>
+</html>
