@@ -2,7 +2,8 @@
 
 A dependency-light, no-server tool that gives you a first read on any CSV or Excel file in seconds — paste data or drop a file, and it automatically infers column types, flags data-quality issues, and surfaces relationships between columns. Nothing leaves your browser; there's no upload, no server, no tracking.
 
-**[Try it live →](#)** https://github.com/YoussefAli07/CSV-into-EDA-Tool
+**[Try it live →]** 
+https://youssefali07.github.io/CSV-into-EDA-Tool/
 
 ## What it does
 
