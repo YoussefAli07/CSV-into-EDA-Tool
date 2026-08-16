@@ -603,9 +603,12 @@
 </main>
 
 <!-- SheetJS: only external dependency besides the Google Fonts CDN above.
+     Self-hosted (not loaded from a third-party CDN) so the page never makes
+     a network request to anyone but this site and Google Fonts, and so the
+     xlsx feature can't silently break if a CDN has downtime or gets blocked.
      Used solely to parse .xlsx/.xls workbooks into arrays of cell values —
-     CSV parsing above stays hand-rolled and works with no network access. -->
-<script defer src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+     CSV parsing above stays hand-rolled and needs no library at all. -->
+<script defer src="xlsx.full.min.js"></script>
 <script>
 const els = {
   input: document.getElementById('csvInput'),
@@ -1482,7 +1485,7 @@ function analyzeSheet(sheetName){
 
 function loadWorkbook(file, arrayBuffer){
   if(typeof XLSX === 'undefined'){
-    showAnalysisError('The spreadsheet library didn\u2019t load (check your internet connection) — try a .csv file instead, or reload the page.');
+    showAnalysisError('The spreadsheet library didn\u2019t load — try reloading the page, or use a .csv file instead.');
     return;
   }
   els.error.style.display = 'none';
