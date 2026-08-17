@@ -1,6 +1,6 @@
 # CSV First Look
 
-A dependency-light, no-server tool that gives you a first read on any CSV or Excel file in seconds — paste data or drop a file, and it automatically infers column types, flags data-quality issues, and surfaces relationships between columns. Nothing leaves your browser; there's no upload, no server, no tracking.
+I have always had to deal with discovering the data I am dealing with before doing any analysis or deciding any Machine-Learning-related decisions. So I created this no-server tool that gives you a first read on any CSV or Excel file in seconds, paste data or drop a file, and it automatically infers column types, flags data-quality issues, and surfaces relationships between columns. Nothing leaves your browser; there's no upload, no server, no tracking.
 
 **[Try it live →]** 
 https://youssefali07.github.io/CSV-into-EDA-Tool/
